@@ -100,6 +100,8 @@ class Agent():
         Qs, Qss = 0,0
         action, input_activities = 0,[]
         
+        self.eligibility_trace = np.zeros((3,self.input_side_size*self.input_side_size))
+        
         for n in range(n_steps):
             #print('\rt =', self.mountain_car.t)
             sys.stdout.flush()
@@ -201,14 +203,17 @@ class Agent():
         
         return action, output_activities[action+1], input_activities
     
-    def learn(self, action, Qs, Qss, input_activities, eta = 0.01, gamma = .95, lambdaa = 0.90):
+    def learn(self, action, Qs, Qss, input_activities, eta = .01, gamma = .99, lambdaa = 0.90):
         TD = self.mountain_car.R - (Qs - gamma*Qss)
         #print(TD)
         for i in range(self.input_side_size):
             for j in range(self.input_side_size):
-                self.eligibility_trace[action+1,i*self.input_side_size+j] = gamma * lambdaa * self.eligibility_trace[action+1,i*self.input_side_size+j] + input_activities[i*self.input_side_size+j]
-                
-                self.outputs_weights[action+1,i*self.input_side_size+j] += eta * TD * self.eligibility_trace[action+1,i*self.input_side_size+j] #action belongs to {-1,0,1}
+                for k in [0,1,2]:
+                    self.eligibility_trace[k,i*self.input_side_size+j] *= gamma * lambdaa
+                    
+                self.eligibility_trace[action+1,i*self.input_side_size+j] += input_activities[i*self.input_side_size+j] #action belongs to {-1,0,1}
+                for k in [0,1,2]:
+                    self.outputs_weights[k,i*self.input_side_size+j] += eta * TD * self.eligibility_trace[k,i*self.input_side_size+j] 
         
                 
 
