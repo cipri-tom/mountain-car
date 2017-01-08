@@ -35,7 +35,7 @@ class DummyAgent():
         self.mountain_car.reset()
 
         for n in range(n_steps):
-            print('\rt =', self.mountain_car.t)
+            #print('\rt =', self.mountain_car.t)
             sys.stdout.flush()
             
             # choose a random action
@@ -61,7 +61,7 @@ class Agent():
     """A not so good agent for the mountain-car task.
     """
 
-    def __init__(self, mountain_car = None, tau=1 ,outputs_weights = None,input_side_size = 20, x_range = [-150, 30], xdot_range = [-15, 15]):
+    def __init__(self, mountain_car = None ,outputs_weights = None,input_side_size = 20, x_range = [-150, 30], xdot_range = [-15, 15]):
         
         if mountain_car is None:
             self.mountain_car = mountaincar.MountainCar()
@@ -69,7 +69,7 @@ class Agent():
             self.mountain_car = mountain_car
 
         if outputs_weights is None:
-            self.outputs_weights = np.ones((3,input_side_size*input_side_size))
+            self.outputs_weights = np.zeros((3,input_side_size*input_side_size))
             #self.outputs_weights = np.random.rand(3,input_side_size*input_side_size)
         else:
             self.outputs_weights = outputs_weights
@@ -77,8 +77,10 @@ class Agent():
         self.input_side_size = input_side_size
         self.x_range = x_range
         self.xdot_range = xdot_range
-        self.tau = tau
-    def visualize_trial(self, n_steps = 200):
+        
+        self.eligibility_trace = np.zeros((3,input_side_size*input_side_size))
+        
+    def visualize_trial(self, n_steps = 200, tau = 1):
         """Do a trial without learning, with display.
 
         Parameters
@@ -107,7 +109,7 @@ class Agent():
             xdot = self.mountain_car.x_d
             
             if n==0:
-                action, Qs, input_activities = self.choose_action(x, xdot, self.outputs_weights, self.tau, self.input_side_size, self.x_range, self.xdot_range)
+                action, Qs, input_activities = self.choose_action(x, xdot,tau)
             
 
             #car update
@@ -119,10 +121,10 @@ class Agent():
             x2 = self.mountain_car.x
             xdot2 = self.mountain_car.x_d
             
-            action2,Qs2,input_activities2 = self.choose_action(x2, xdot2, self.outputs_weights, self.tau, self.input_side_size, self.x_range, self.xdot_range)
+            action2,Qs2,input_activities2 = self.choose_action(x2, xdot2,tau)
 
             #learn
-            self.outputs_weights = self.learn(self.outputs_weights,action, self.mountain_car.R,Qs, Qs2, input_activities, self.input_side_size)
+            self.learn(action, Qs, Qs2, input_activities)
             
             #next state
             Qs = Qs2
@@ -139,26 +141,58 @@ class Agent():
             if self.mountain_car.R > 0.0:
                 print("\rreward obtained at t = ", self.mountain_car.t)
                 break
+    
+    def visualize_field(self):
+        actions = np.zeros((self.input_side_size,self.input_side_size))
+        
+        sigma = (self.x_range[1]-self.x_range[0])/(self.input_side_size-1)
+        sigmadot = (self.xdot_range[1]-self.xdot_range[0])/(self.input_side_size-1)
+        
+        for i in range(self.input_side_size):
+            for j in range(self.input_side_size):
                 
-    def choose_action(self, x, xdot, weights, tau, input_side_size, x_range, xdot_range):
+                x = self.x_range[0]+j*sigma
+                xdot = self.xdot_range[0]+i*sigmadot
+                
+                input_activities = np.zeros(self.input_side_size*self.input_side_size)
+                
+                for i0 in range(self.input_side_size):
+                    for j0 in range(self.input_side_size):
+
+                        x0 = self.x_range[0]+j0*sigma
+                        xdot0 = self.xdot_range[0]+i0*sigmadot
+
+                        input_activities[i*self.input_side_size+j] = np.exp(-(x-x0)**2/(sigma)**2-(xdot-xdot0)**2/(sigmadot)**2)
+                
+                output_activities = np.zeros(3)
+                for k in range(3):
+                    output_activities[k] = self.outputs_weights[k].dot(input_activities)
+        
+                actions[i,j] = np.argmax(output_activities)
+                
+        print(actions)
+                
+                
+    
+    def choose_action(self, x, xdot,tau):
         # Generate activity for each input neuron
-        input_activities = np.zeros(input_side_size*input_side_size)
+        input_activities = np.zeros(self.input_side_size*self.input_side_size)
         
-        sigma = (x_range[1]-x_range[0])/(input_side_size-1)
-        sigmadot = (xdot_range[1]-xdot_range[0])/(input_side_size-1)
+        sigma = (self.x_range[1]-self.x_range[0])/(self.input_side_size-1)
+        sigmadot = (self.xdot_range[1]-self.xdot_range[0])/(self.input_side_size-1)
         
-        for i in range(input_side_size):
-            for j in range(input_side_size):
+        for i in range(self.input_side_size):
+            for j in range(self.input_side_size):
 
-                x0 = x_range[0]+j*sigma
-                xdot0 = xdot_range[0]+i*sigmadot
+                x0 = self.x_range[0]+j*sigma
+                xdot0 = self.xdot_range[0]+i*sigmadot
 
-                input_activities[i*input_side_size+j] = np.exp(-(x-x0)**2/(sigma)**2-(xdot-xdot0)**2/(sigmadot)**2)
+                input_activities[i*self.input_side_size+j] = np.exp(-(x-x0)**2/(sigma)**2-(xdot-xdot0)**2/(sigmadot)**2)
 
         # Generate activity for each output neuron
         output_activities = np.zeros(3)
         for i in range(3):
-            output_activities[i] = weights[i].dot(input_activities)
+            output_activities[i] = self.outputs_weights[i].dot(input_activities)
 
 
         # Generate action probability for each action
@@ -167,13 +201,14 @@ class Agent():
         
         return action, output_activities[action+1], input_activities
     
-    def learn(self, weights, action, R, Qs, Qss, input_activities, input_side_size, eta = 0.001, gamma = 0.95, lambdaa = 0.90):
-        TD = R - (Qs - gamma*Qss)
+    def learn(self, action, Qs, Qss, input_activities, eta = 0.01, gamma = .95, lambdaa = 0.90):
+        TD = self.mountain_car.R - (Qs - gamma*Qss)
         #print(TD)
-        for i in range(input_side_size):
-            for j in range(input_side_size):
-                weights[action+1,i*input_side_size+j] += eta * TD * input_activities[i*input_side_size+j] #action belongs to {-1,0,1}
+        for i in range(self.input_side_size):
+            for j in range(self.input_side_size):
+                self.eligibility_trace[action+1,i*self.input_side_size+j] = gamma * lambdaa * self.eligibility_trace[action+1,i*self.input_side_size+j] + input_activities[i*self.input_side_size+j]
+                
+                self.outputs_weights[action+1,i*self.input_side_size+j] += eta * TD * self.eligibility_trace[action+1,i*self.input_side_size+j] #action belongs to {-1,0,1}
         
-        return weights
                 
 
