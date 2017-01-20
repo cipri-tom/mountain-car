@@ -11,15 +11,15 @@ class MountainCar():
     For the miniproject, you are not meant to change the default parameters
     (mass of the car, etc.)
 
-    Usage: 
+    Usage:
         >>> mc = MountainCar()
-        
+
         Set the agent to apply a rightward force (positive in x)
         >>> mc.apply_force(+1) # the actual value doesn't mattter, only the sign
-        
+
         Run an "agent time step" of 1s with 0.01 s integration time step
         >>> mc.simulate_timesteps(n = 100, dt = 0.01)
-        
+
         Check the state variables of the agent, and the reward
         >>> print mc.x, mc.x_d, mc.R
 
@@ -27,10 +27,10 @@ class MountainCar():
         >>> mc.reset()
     """
 
-    def __init__(self, g = 10.0, d = 100.0, H = 10., m = 10.0, 
-                force_amplitude = 3.0, reward_amplitude = 1., 
+    def __init__(self, g = 10.0, d = 100.0, H = 10., m = 10.0,
+                force_amplitude = 3.0, reward_amplitude = 1.,
                  reward_threshold = 0.0):
-        
+
         # set internal parameters from constructor call
         self.g = g # gravitational constant
         self.d = d # minima location
@@ -48,10 +48,10 @@ class MountainCar():
         """
 
         # set position to range [-130; -50]
-        self.x = 80 * np.random.rand() - 130.0 
+        self.x = 80 * np.random.rand() - 130.0
         #self.x = -60.0
         #print self.x
-        
+
         # set x_dot to range [-5; 5]
         self.x_d = 10.0 * np.random.rand() - 5.0
         # reset reward
@@ -64,8 +64,8 @@ class MountainCar():
     def apply_force(self, direction):
         """Apply a force to the car.
 
-        Only three values of force are possible: 
-            right (if direction > 0), 
+        Only three values of force are possible:
+            right (if direction > 0),
             left (direction < 0) or
             no force (direction = 0).\
         """
@@ -75,7 +75,7 @@ class MountainCar():
         """Return the value of the landscape function h in x.
         """
         return (x - self.d)**2 * (x + self.d)**2 / ((self.d**4/self.H)+x**2)
-        
+
     def _h_prime(self, x):
         """Return the value of the first derivative of the landscape function h in x.
         """
@@ -87,7 +87,7 @@ class MountainCar():
         """
         c = self.d**4/self.H
         return 2 * (
-            - 2 * c**2 * (self.d**2 - 3*x**2) 
+            - 2 * c**2 * (self.d**2 - 3*x**2)
             + c * (-self.d**4 + 6*self.d**2 * x**2 + 3*x**4)
             + 3 * self.d**4 * x**2
             + x**6
@@ -97,7 +97,7 @@ class MountainCar():
         """Return the total energy of the car with variable x and x_d.
         """
         # note that v and x dot are not the same: v includes the y direction!
-        return self.m * (self.g * self._h(x) + 0.5 * (1 + self._h_prime(x)**2) * x_d**2) 
+        return self.m * (self.g * self._h(x) + 0.5 * (1 + self._h_prime(x)**2) * x_d**2)
 
     def simulate_timesteps(self, n = 1, dt = 0.1):
         """Simulate the car dynamics for n timesteps of length dt.
@@ -105,7 +105,7 @@ class MountainCar():
 
         for i in range(n):
             self._simulate_single_timestep(dt)
-        
+
         self.t += n*dt
 
         # check for rewards
@@ -139,8 +139,8 @@ class MountainCar():
 
 class MountainCarViewer():
     """Display the state of a MountainCar instance.
-    
-    Usage: 
+
+    Usage:
         >>> mc = MountainCar()
 
         >>> mv = MoutainCarViewer(mc)
@@ -148,17 +148,17 @@ class MountainCarViewer():
         Turn matplotlib's "interactive mode" on and create figure
         >>> plb.ion()
         >>> mv.create_figure(n_steps = 200, max_time = 200)
-        
+
         This forces matplotlib to draw the fig. before the end of execution
         >>> plb.draw()
-        
+
         Simulate the MountainCar, visualizing the state
         >>> for n in range(200):
         >>>     mc.simulate_timesteps(100,0.01)
         >>>     mv.update_figure()
         >>>     plb.draw()
     """
-    
+
     def __init__(self, mountain_car):
         assert isinstance(mountain_car, MountainCar), \
                 'Argument to MoutainCarViewer() must be a MountainCar instance'
@@ -166,7 +166,7 @@ class MountainCarViewer():
 
     def create_figure(self, n_steps, max_time, f = None):
         """Create a figure showing the progression of the car.
-        
+
         Call update_car_state susequently to update this figure.
 
         Parameters:
@@ -181,7 +181,7 @@ class MountainCarViewer():
         else:
             self.f = f
 
-        # create the to store the arrays
+        # create the vars to store the arrays
         self.times = np.zeros(n_steps + 1)
         self.positions = np.zeros((n_steps + 1,2))
         self.forces = np.zeros(n_steps + 1)
@@ -199,14 +199,14 @@ class MountainCarViewer():
         # create the force plot
         self.ax_forces = plb.subplot(2,2,3)
         self.h_forces = self._plot_forces()
-        plb.axis(xmin = 0, xmax = max_time, 
+        plb.axis(xmin = 0, xmax = max_time,
                  ymin = -1.1 * self.mountain_car.force_amplitude,
                  ymax = 1.1 * self.mountain_car.force_amplitude)
-        
+
         # create the energy plot
         self.ax_energies = plb.subplot(2,2,4)
         self.h_energies = self._plot_energy()
-        plb.axis(xmin = 0, xmax = max_time, 
+        plb.axis(xmin = 0, xmax = max_time,
                  ymin = 0.0, ymax =1000.)
 
     def update_figure(self):
@@ -215,7 +215,7 @@ class MountainCarViewer():
         Assumes the figure has already been created with create_figure.
         """
 
-        # increment 
+        # increment
         self.i += 1
         assert self.i < len(self.forces), \
                 "update_figure was called too many times."
@@ -241,7 +241,7 @@ class MountainCarViewer():
     def _plot_energy_landscape(self, ax = None):
         """plot the energy landscape for the mountain car in 2D.
 
-        Returns the axes instance created. Use plot_energy_landscape to let 
+        Returns the axes instance created. Use plot_energy_landscape to let
         the module decide whether you have the right modules for 3D plotting.
         """
 
@@ -257,7 +257,7 @@ class MountainCarViewer():
         if ax is None:
             f = plb.figure()
             ax = plb.axes()
-        
+
         C = ax.contourf(X,XD, E,100)
         ax.set_xlabel('$x$')
         ax.set_ylabel('$\dot x$')
@@ -286,7 +286,7 @@ class MountainCarViewer():
                 np.atleast_1d(self.positions[self.i,1]),
                 'o' + color,
                 markeredgecolor = 'none',
-                markersize = 9,                
+                markersize = 9,
             )[0])
             return tuple(handles)
         else:
