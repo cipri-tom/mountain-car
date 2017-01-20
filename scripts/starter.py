@@ -30,112 +30,94 @@ class Agent():
             self.mountain_car = mountain_car
 
 
-        self.eligibility_trace = np.zeros((3,input_side_size*input_side_size))
-
         if weights is None:
+            # TODO: is `ones` good enough ? should it be random ?
             self.weights = np.ones((3,side_size,side_size))
-            #self.weights = np.random.rand(3,side_size*side_size)
+            #self.weights = np.random.rand((3,side_size,side_size))
         else:
             self.weights = weights
 
-        self.tau = tau
+        self.eligibility_trace = np.empty_like(self.weights)
 
         # neuron preference centres, widths, activations:
-        self.centres_x, self.sigma_x = np.linspace(x_range[0], x_range[1], side_size-1, endpoint=True, retstep=True)
-        self.centres_v, self.sigma_v = np.linspace(v_range[0], v_range[1], side_size-1, endpoint=True, retstep=True)
-        self.states = np.zeros((side_size, side_size))
+        self.centres_x, self.sigma_x = np.linspace(x_range[0], x_range[1], side_size, endpoint=True, retstep=True)
+        self.centres_v, self.sigma_v = np.linspace(v_range[0], v_range[1], side_size, endpoint=True, retstep=True)
 
+        self.tau = tau
         self.side_size  = side_size
 
-    def visualize_trial(self, n_steps = 2000):
+    def visualize_trial(self, n_steps=2000, tau=1):
         """ Do an episode of maximum `n_steps` """
 
         # prepare for the visualization
-        plb.ion()
+        # plb.ion()
         mv = mountaincar.MountainCarViewer(self.mountain_car)
         mv.create_figure(n_steps, n_steps)
         plb.draw()
 
-        # make sure the mountain-car is reset
-        #self.mountain_car.reset()
+        # Initialisation:
+        # ---------------
+        self.mountain_car.reset()
+        self.eligibility_trace = np.zeros_like(self.eligibility_trace)
+        self.tau = tau
 
-        Qs, Qss = 0,0
-        action, input_activities = 0,[]
+        # current state
+        x = self.mountain_car.x
+        v = self.mountain_car.x_d
 
-        self.eligibility_trace = np.zeros((3,self.input_side_size*self.input_side_size))
+        # representation of the current state, and current action
+        action, state, Q_s_a = self.choose_action(x, v)
+        Q_sp_ap = 0  # not yet known
 
         for n in range(n_steps):
-            #print('\rt =', self.mountain_car.t)
-            sys.stdout.flush()
-
-            # choose action
-            x = self.mountain_car.x
-            v = self.mountain_car.x_d
-
-            if n==0:
-                action, Qs, input_activities = self.choose_action(x, v)
-
-            #car update
+            # Use current action to get to next state, s_prime
             self.mountain_car.apply_force(action)
             self.mountain_car.simulate_timesteps(100, 0.01)
+            x_prime = self.mountain_car.x
+            v_prime = self.mountain_car.x_d
 
+            # Since this is SARSA, choose next action supposing you also use same policy in next state
+            action_prime, state_prime, Q_sp_ap = self.choose_action(x_prime, v_prime)
 
-            #s' state
-            x2 = self.mountain_car.x
-            v2 = self.mountain_car.x_d
+            # update weights based on observations
+            self.learn(state, action, Q_s_a, Q_sp_ap)
 
-            action2,Qs2,input_activities2 = self.choose_action(x2, xdot2,tau)
-
-            #learn
-            self.learn(action, Qs, Qs2, input_activities)
-
-            #next state
-            Qs = Qs2
-            action = action2
-            input_activities = input_activities2
-
+            # move to next state
+            Q_s_a  = Q_sp_ap
+            action = action_prime
+            state  = state_prime
 
             # update the visualization
             mv.update_figure()
-            plb.draw()
+            # plb.draw()
 
-
-            # check for rewards
+            # stop when goal was reached
             if self.mountain_car.R > 0.0:
                 print("\rreward obtained at t = ", self.mountain_car.t)
                 break
 
     def visualize_field(self):
-        actions = np.zeros((self.input_side_size,self.input_side_size))
+        actions = np.empty((self.side_size, self.side_size))
+        state = np.empty_like(actions)
 
-        sigma = (self.x_range[1]-self.x_range[0])/(self.input_side_size-1)
-        sigmadot = (self.xdot_range[1]-self.xdot_range[0])/(self.input_side_size-1)
+        # TODO: super vectorise this
 
-        for i in range(self.input_side_size):
-            for j in range(self.input_side_size):
+        # for each possible state
+        for i in range(self.side_size):
+            # TODO: invert y axis, because higher values are lower in the matrix
+            for j in range(self.side_size):
 
-                x = self.x_range[0]+j*sigma
-                xdot = self.xdot_range[0]+i*sigmadot
+                # compute the activations of all the states, given this one
+                for k in range(self.side_size):
+                    for l in range(self.side_size):
+                        state[k,l] = self.activation(k,l, self.centres_x[i], self.centres_v[j])
 
-                input_activities = np.zeros(self.input_side_size*self.input_side_size)
-
-                for i0 in range(self.input_side_size):
-                    for j0 in range(self.input_side_size):
-
-                        x0 = self.x_range[0]+j0*sigma
-                        xdot0 = self.xdot_range[0]+i0*sigmadot
-
-                        input_activities[i*self.input_side_size+j] = np.exp(-(x-x0)**2/(sigma)**2-(xdot-xdot0)**2/(sigmadot)**2)
-
-                output_activities = np.zeros(3)
-                for k in range(3):
-                    output_activities[k] = self.outputs_weights[k].dot(input_activities)
-
-                actions[i,j] = np.argmax(output_activities)
+                Q_s_a = np.tensordot(self.weights, state, 2)
+                actions[i,j] = np.argmax(Q_s_a) - 1  # to match true action
 
         print(actions)
 
-   def activation(self, i, j, x, v):
+    def activation(self, i, j, x, v):
         """ The activation of the neuron at position (i,j) given (x, v) """
         xc, vc = self.centres_x[i], self.centres_v[j]
 
@@ -148,7 +130,7 @@ class Agent():
             It uses a linear approximation of the value function and softmax
             probability distribution.
 
-            Return: (action_prime, Q[(x,v),action_prime], s_prime)
+            Return: (a_prime, s_prime, , Q[s_prime,a_prime])
         """
 
         # 1) find Q of each possible action from state s=(x,v)
@@ -160,7 +142,7 @@ class Agent():
 
         # 1.1) Map s=(x,v) to neurons based on the activation function
         # TODO: vectorize this (using meshgrid)
-        s_prime = np.zeros_like(self.states) # in_activations
+        s_prime = np.empty((self.side_size, self.side_size))
         for i in range(self.side_size):
             for j in range(self.side_size):
                 s_prime[i,j] = self.activation(i,j, x,v)
@@ -169,23 +151,24 @@ class Agent():
         # weights(num_actions x num_neurons_pos x num_neurons_v) . states(neuron_activ_pos x neuron_activ_v) = (num_Q_actions)
         # i.e. (3x20x20) . (20x20) -> (3,)
         # out_activations = np.tensordot(self.weights, s_prime, 2)
-        Q_sa = np.tensordot(self.weights, s_prime, 2)
+        Q_sp_a = np.tensordot(self.weights, s_prime, 2)
 
         # ε-greedy action choice; Generate action probability with `tau` exploration temperature
-        action_probabilities = softmax(Q_sa, tau)
-        action_prime = np.random.choice([-1,0,1], p=action_probabilities)
+        action_probabilities = softmax(Q_sp_a, self.tau)
+        a_prime = np.random.choice([-1,0,1], p=action_probabilities)
 
-        return action_prime, Q_sa[action_prime+1], s_prime
+        return a_prime, s_prime, Q_sp_a[a_prime+1]
 
-    def learn(self, action, Qs, Qss, input_activities, eta = .01, gamma = .99, lambdaa = 0.90):
-        TD = self.mountain_car.R - (Qs - gamma*Qss)
-        #print(TD)
-        for i in range(self.input_side_size):
-            for j in range(self.input_side_size):
-                for k in [0,1,2]:
-                    self.eligibility_trace[k,i*self.input_side_size+j] *= gamma * lambdaa
+    def learn(self, state, action, Q_s_a, Q_sp_ap, eta = .01, gamma = .99, lambdaa = 0.90):
+        """ Updates the weights of all actions based on the observed reward and a decaying eligibility trace """
+        d = self.mountain_car.R - (Q_s_a - gamma*Q_sp_ap)
 
-                self.eligibility_trace[action+1,i*self.input_side_size+j] += input_activities[i*self.input_side_size+j] #action belongs to {-1,0,1}
-                for k in [0,1,2]:
-                    self.outputs_weights[k,i*self.input_side_size+j] += eta * TD * self.eligibility_trace[k,i*self.input_side_size+j]
+        # first decay the eligibility trace
+        self.eligibility_trace *= gamma * lambdaa
+
+        # then reinforce it based on the actions that caused it
+        self.eligibility_trace[action+1] += state #action belongs to {-1,0,1}
+
+        # finally, update the weights with this new one
+        self.weights += eta * d * self.eligibility_trace
 

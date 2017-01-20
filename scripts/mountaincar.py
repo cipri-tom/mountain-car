@@ -182,10 +182,10 @@ class MountainCarViewer():
             self.f = f
 
         # create the vars to store the arrays
-        self.times = np.zeros(n_steps + 1)
+        self.times     = np.zeros(n_steps + 1)
         self.positions = np.zeros((n_steps + 1,2))
-        self.forces = np.zeros(n_steps + 1)
-        self.energies = np.zeros(n_steps + 1)
+        self.forces    = np.zeros(n_steps + 1)
+        self.energies  = np.zeros(n_steps + 1)
 
         # Fill the initial values
         self.i = 0
@@ -279,7 +279,8 @@ class MountainCarViewer():
             handles.append(plb.plot(
                 np.atleast_1d(self.positions[:self.i+1,0]),
                 np.atleast_1d(self.positions[:self.i+1,1]),
-                ',k'
+                ',k',
+                markersize = 8,
             )[0])
             handles.append(plb.plot(
                 np.atleast_1d(self.positions[self.i,0]),
