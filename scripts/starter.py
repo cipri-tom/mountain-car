@@ -13,15 +13,22 @@ def softmax(x, tau):
 class Agent():
     """A Sarsa(lambda) agent which learns its way out """
 
-    def __init__(self, mountain_car = None, tau=1, weights = None,
-                 side_size = 20, x_range = (-150, 30), v_range = (-15, 15)):
+    def __init__(self, mountain_car = None, side_size = 10, tau = 0.05,
+                 x_range = (-150, 30), v_range = (-15, 15), weights = None,
+                 eta = 0.01, gamma = 0.95, lambdaa = 0.9):
         """ Makes a new agent with given parameters:
+        Model:
             mountain_car : Instance of MountainCar
-            tau          : exploration temperature -- scalar
             side_size    : input neurons are arranged in a grid of this size -- scalar
+            tau          : strategy exploration temperature -- scalar
             x_range      : range of positions to with input neurons -- 2-tuple
             v_range      : range of velocities to cover with input neurons -- 2-tuple
             weights      : from input neurons to output neurons -- array(3 x side_size x side_size)
+
+        Learning:
+            eta          : learning rate -- scalar << 1
+            gamma        : future state discounting factor -- scalar (0.95 recommended)
+            lambdaa      : eligibility decay rate -- scalar in (0,1)
         """
 
         if mountain_car is None:
@@ -43,17 +50,23 @@ class Agent():
         self.centres_x, self.sigma_x = np.linspace(x_range[0], x_range[1], side_size, endpoint=True, retstep=True)
         self.centres_v, self.sigma_v = np.linspace(v_range[0], v_range[1], side_size, endpoint=True, retstep=True)
 
-        self.tau = tau
+        # save the rest of the params
+        self.tau   = tau
+        self.eta   = eta
+        self.gamma = gamma
+        self.lambdaa = lambdaa
         self.side_size  = side_size
 
-    def visualize_trial(self, n_steps=2000, tau=1):
-        """ Do an episode of maximum `n_steps` """
+    def episode(self, n_steps=2000, tau=0.05, animation=False, fig=None):
+        """ Do an episode of maximum `n_steps`
+            This also accepts the `tau` parameter, in case you want to update it
+            Optionally, you can specify a figure where to draw this episode
+        """
 
         # prepare for the visualization
-        # plb.ion()
-        mv = mountaincar.MountainCarViewer(self.mountain_car)
-        mv.create_figure(n_steps, n_steps)
-        plb.draw()
+        if animation:
+            mv = mountaincar.MountainCarViewer(self.mountain_car)
+            mv.create_figure(n_steps, n_steps, fig)
 
         # Initialisation:
         # ---------------
@@ -88,12 +101,12 @@ class Agent():
             state  = state_prime
 
             # update the visualization
-            mv.update_figure()
-            # plb.draw()
+            if animation:
+                mv.update_figure(n)
 
             # stop when goal was reached
             if self.mountain_car.R > 0.0:
-                print("\rreward obtained at t = ", self.mountain_car.t)
+                print("reward obtained at t = ", self.mountain_car.t, end='\n\n')
                 break
 
     def visualize_field(self):
@@ -159,16 +172,16 @@ class Agent():
 
         return a_prime, s_prime, Q_sp_a[a_prime+1]
 
-    def learn(self, state, action, Q_s_a, Q_sp_ap, eta = .01, gamma = .99, lambdaa = 0.90):
+    def learn(self, state, action, Q_s_a, Q_sp_ap):
         """ Updates the weights of all actions based on the observed reward and a decaying eligibility trace """
-        d = self.mountain_car.R - (Q_s_a - gamma*Q_sp_ap)
+        d = self.mountain_car.R - (Q_s_a - self.gamma * Q_sp_ap)
 
-        # first decay the eligibility trace
-        self.eligibility_trace *= gamma * lambdaa
+        # first, decay the eligibility trace
+        self.eligibility_trace *= self.gamma * self.lambdaa
 
-        # then reinforce it based on the actions that caused it
-        self.eligibility_trace[action+1] += state #action belongs to {-1,0,1}
+        # then, reinforce it based on the actions that caused it
+        self.eligibility_trace[action+1] += state # action belongs to {-1,0,1}
 
         # finally, update the weights with this new one
-        self.weights += eta * d * self.eligibility_trace
+        self.weights += self.eta * d * self.eligibility_trace
 

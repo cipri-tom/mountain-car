@@ -180,6 +180,7 @@ class MountainCarViewer():
             self.f = plb.figure()
         else:
             self.f = f
+            plb.clf()
 
         # create the vars to store the arrays
         self.times     = np.zeros(n_steps + 1)
@@ -209,7 +210,7 @@ class MountainCarViewer():
         plb.axis(xmin = 0, xmax = max_time,
                  ymin = 0.0, ymax =1000.)
 
-    def update_figure(self):
+    def update_figure(self, max_time=None):
         """Update the figure.
 
         Assumes the figure has already been created with create_figure.
@@ -227,6 +228,11 @@ class MountainCarViewer():
         self._plot_positions(self.h_position)
         self._plot_forces(self.h_forces)
         self._plot_energy(self.h_energies)
+
+        # rescale plots
+        if max_time:
+            self.ax_forces.set_xlim(0, max_time + 5) # leave a bit of space
+            self.ax_energies.set_xlim(0, max_time + 5)
 
     def _get_values(self):
         """Retrieve the relevant car variables for the figure.
