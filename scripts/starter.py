@@ -106,7 +106,7 @@ class Agent():
 
             # stop when goal was reached
             if self.mountain_car.R > 0.0:
-                print("reward obtained at t = ", self.mountain_car.t, end='\n\n')
+                # print("reward obtained at t = ", self.mountain_car.t, end='\n\n')
                 break
 
     def visualize_field(self):
