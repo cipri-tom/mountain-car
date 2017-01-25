@@ -46,9 +46,17 @@ class Agent():
 
         self.eligibility_trace = np.empty_like(self.weights)
 
-        # neuron preference centres, widths, activations:
+        # neuron preference centres, widths:
         self.centres_x, self.sigma_x = np.linspace(x_range[0], x_range[1], side_size, endpoint=True, retstep=True)
         self.centres_v, self.sigma_v = np.linspace(v_range[0], v_range[1], side_size, endpoint=True, retstep=True)
+
+        # we transpose one of the dimensions so that it will be broadcasted nicely with the other
+        self.centres_x = np.atleast_2d(self.centres_x)
+        self.centres_v = np.atleast_2d(self.centres_v).T
+
+        # we always use sigma**2 in our calculations, so save that one instead
+        self.sigma_x = self.sigma_x ** 2
+        self.sigma_v = self.sigma_v ** 2
 
         # save the rest of the params
         self.tau   = tau
@@ -112,30 +120,30 @@ class Agent():
     def visualize_field(self):
         actions = np.empty((self.side_size, self.side_size))
         state = np.empty_like(actions)
+        cx = self.centres_x.flatten()
+        cv = self.centres_v.flatten()
 
-        # TODO: super vectorise this
+        # TODO: maybe super vectorise this, although for side_size=100 it would
+        #       reach a tensor of 100**4
 
         # for each possible state
         for i in range(self.side_size):
             # TODO: invert y axis, because higher values are lower in the matrix
             for j in range(self.side_size):
 
-                # compute the activations of all the states, given this one
-                for k in range(self.side_size):
-                    for l in range(self.side_size):
-                        state[k,l] = self.activation(k,l, self.centres_x[i], self.centres_v[j])
+                state = self.activation(cx[i], cv[j])
 
                 Q_s_a = np.tensordot(self.weights, state, 2)
                 actions[i,j] = np.argmax(Q_s_a) - 1  # to match true action
 
         print(actions)
+        return actions
 
-    def activation(self, i, j, x, v):
-        """ The activation of the neuron at position (i,j) given (x, v) """
-        xc, vc = self.centres_x[i], self.centres_v[j]
-
-        return np.exp(-(x-xc)**2 / (self.sigma_x)**2
-                      -(v-vc)**2 / (self.sigma_v)**2)
+    def activation(self, x, v):
+        """ The activation of the neurons given (x, v) """
+        # sigma is already squared !
+        return np.exp(-(x-self.centres_x)**2 / (self.sigma_x)
+                      -(v-self.centres_v)**2 / (self.sigma_v))
 
 
     def choose_action(self, x, v):
@@ -143,34 +151,30 @@ class Agent():
             It uses a linear approximation of the value function and softmax
             probability distribution.
 
-            Return: (a_prime, s_prime, , Q[s_prime,a_prime])
+            Return: (a, s, , Q[s,a])
         """
 
         # 1) find Q of each possible action from state s=(x,v)
         # This is approximated linearly from `s` and each action's 'feature vector'
 
-        # We consider that each action is described by a set of features, wohse weights are learnt
-        # We use a tiling of neurons over the whole state space to find a linear approximation of Q at s=(x,v)
-        # given the weights `w` of some action's features
+        # We consider that each action is described by a set of features, whose weights are learnt
+        # We use a tiling of neurons over the whole state space to find a linear approximation
+        # of Q at s=(x,v) given the weights `w` of some action's features
 
-        # 1.1) Map s=(x,v) to neurons based on the activation function
-        # TODO: vectorize this (using meshgrid)
-        s_prime = np.empty((self.side_size, self.side_size))
-        for i in range(self.side_size):
-            for j in range(self.side_size):
-                s_prime[i,j] = self.activation(i,j, x,v)
+        # 1.1) Map s=(x,v) to neurons activation
+        s = self.activation(x,v)
 
         # 1.2) For each action `a_i`, compute Q(s, a_i) -- Vectorised
         # weights(num_actions x num_neurons_pos x num_neurons_v) . states(neuron_activ_pos x neuron_activ_v) = (num_Q_actions)
         # i.e. (3x20x20) . (20x20) -> (3,)
-        # out_activations = np.tensordot(self.weights, s_prime, 2)
-        Q_sp_a = np.tensordot(self.weights, s_prime, 2)
+        # out_activations = np.tensordot(self.weights, s, 2)
+        Q_s_a = np.tensordot(self.weights, s, 2)
 
         # ε-greedy action choice; Generate action probability with `tau` exploration temperature
-        action_probabilities = softmax(Q_sp_a, self.tau)
-        a_prime = np.random.choice([-1,0,1], p=action_probabilities)
+        action_probabilities = softmax(Q_s_a, self.tau)
+        a = np.random.choice([-1,0,1], p=action_probabilities)
 
-        return a_prime, s_prime, Q_sp_a[a_prime+1]
+        return a, s, Q_s_a[a+1]
 
     def learn(self, state, action, Q_s_a, Q_sp_ap):
         """ Updates the weights of all actions based on the observed reward and a decaying eligibility trace """
