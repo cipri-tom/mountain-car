@@ -65,6 +65,9 @@ class Agent():
         self.lambdaa = lambdaa
         self.side_size  = side_size
 
+        # number of steps used per episode
+        self.escape_times = []
+
     def episode(self, n_steps=2000, tau=0.05, animation=False, fig=None):
         """ Do an episode of maximum `n_steps`
             This also accepts the `tau` parameter, in case you want to update it
@@ -116,6 +119,9 @@ class Agent():
             if self.mountain_car.R > 0.0:
                 # print("reward obtained at t = ", self.mountain_car.t, end='\n\n')
                 break
+
+        # episode is finished, save number of steps
+        self.escape_times.append(self.mountain_car.t)
 
     def visualize_field(self):
         actions = np.empty((self.side_size, self.side_size))
