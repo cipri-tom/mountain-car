@@ -5,10 +5,11 @@ import numpy as np
 import mountaincar
 
 def softmax(x, tau):
-    """ Returns softmax probabilities with temperature tau"""
-    x -= np.max(x)
-    e_x = np.exp(x / tau)
-    return e_x / e_x.sum()
+    """ Numerically stable softmax probabilities with temperature tau"""
+    # kudos to http://stackoverflow.com/q/3985619/29863846#29863846
+    max_x = max(0.0, np.max(x/tau))
+    rebased_x = x/tau - max_x
+    return np.exp(rebased_x - np.logaddexp(-max_x, np.logaddexp.reduce(rebased_x)))
 
 class Agent():
     """A Sarsa(lambda) agent which learns its way out """
@@ -38,9 +39,7 @@ class Agent():
 
 
         if weights is None:
-            # TODO: is `ones` good enough ? should it be random ?
             self.weights = np.ones((3,side_size,side_size))
-            #self.weights = np.random.rand((3,side_size,side_size))
         else:
             self.weights = weights
 
