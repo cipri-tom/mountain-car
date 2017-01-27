@@ -4,12 +4,18 @@ import pylab as plb
 import numpy as np
 import mountaincar
 
+# def softmax(q, tau):
+#     """ Numerically stable softmax probabilities with temperature tau"""
+#     # kudos to http://stackoverflow.com/q/3985619/29863846#29863846
+#     # q = q / tau
+#     max_q = max(0.0, np.max(q))
+#     rebased_q = q - max_q
+#     return np.exp(rebased_q - np.logaddexp(-max_q, np.logaddexp.reduce(rebased_q)))
+
 def softmax(x, tau):
-    """ Numerically stable softmax probabilities with temperature tau"""
-    # kudos to http://stackoverflow.com/q/3985619/29863846#29863846
-    max_x = max(0.0, np.max(x/tau))
-    rebased_x = x/tau - max_x
-    return np.exp(rebased_x - np.logaddexp(-max_x, np.logaddexp.reduce(rebased_x)))
+    """ Returns softmax probabilities with temperature tau"""
+    e_x = np.exp(x / tau)
+    return e_x / e_x.sum()
 
 class Agent():
     """A Sarsa(lambda) agent which learns its way out """
