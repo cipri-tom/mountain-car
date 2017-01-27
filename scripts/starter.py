@@ -123,7 +123,13 @@ class Agent():
         # episode is finished, save number of steps
         self.escape_times.append(self.mountain_car.t)
 
-    def visualize_field(self):
+    def visualize_field(self, fig=None):
+        if not fig:
+            fig = plb.figure()
+        else:
+            plb.figure(fig.number)
+            fig.clf()
+
         actions = np.empty((self.side_size, self.side_size))
         state = np.empty_like(actions)
         cx = self.centres_x.flatten()
@@ -134,16 +140,22 @@ class Agent():
 
         # for each possible state
         for i in range(self.side_size):
-            # TODO: invert y axis, because higher values are lower in the matrix
             for j in range(self.side_size):
-
                 state = self.activation(cx[i], cv[j])
-
                 Q_s_a = np.tensordot(self.weights, state, 2)
                 actions[i,j] = np.argmax(Q_s_a) - 1  # to match true action
 
-        print(actions)
-        return actions
+        plb.quiver(cx, cv, actions, np.zeros_like(actions))
+
+        # adjust axes to see the margins
+        l, r, b, t = plb.axis()
+        dx, dy = 0.1*(r - l), 0.1*(t - b)
+        plb.axis([l - dx, r, b - dy, t + dy])
+        plb.xlabel('Position (m)', fontsize=14)
+        plb.ylabel(r'Speed ($\frac{m}{s}$)', fontsize=14)
+        plb.title(r'''Force direction at episode {e}{n}($\lambda={l}, \tau={t}$)'''.format(
+            e=self.mountain_car.t, n="\n", l=self.lambdaa, t=self.tau), fontsize=18)
+        # return actions
 
     def activation(self, x, v):
         """ The activation of the neurons given (x, v) """
@@ -173,7 +185,6 @@ class Agent():
         # 1.2) For each action `a_i`, compute Q(s, a_i) -- Vectorised
         # weights(num_actions x num_neurons_pos x num_neurons_v) . states(neuron_activ_pos x neuron_activ_v) = (num_Q_actions)
         # i.e. (3x20x20) . (20x20) -> (3,)
-        # out_activations = np.tensordot(self.weights, s, 2)
         Q_s_a = np.tensordot(self.weights, s, 2)
 
         # ε-greedy action choice; Generate action probability with `tau` exploration temperature
