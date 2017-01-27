@@ -6,7 +6,7 @@ import mountaincar
 
 def softmax(x, tau):
     """ Returns softmax probabilities with temperature tau"""
-    # TODO: if overflows or unstable, use normalisation trick
+    x -= np.max(x)
     e_x = np.exp(x / tau)
     return e_x / e_x.sum()
 
@@ -68,7 +68,7 @@ class Agent():
         # number of steps used per episode
         self.escape_times = []
 
-    def episode(self, n_steps=2000, tau=0.05, animation=False, fig=None):
+    def episode(self, n_steps=2000, tau=None, animation=False, fig=None):
         """ Do an episode of maximum `n_steps`
             This also accepts the `tau` parameter, in case you want to update it
             Optionally, you can specify a figure where to draw this episode
@@ -83,7 +83,14 @@ class Agent():
         # ---------------
         self.mountain_car.reset()
         self.eligibility_trace = np.zeros_like(self.eligibility_trace)
-        self.tau = tau
+
+        if tau is not None:
+            self.tau = tau
+        if self.tau < 1e-4:
+            print("WARNING: Tau is too small so it has been replaced by 0.0001",
+                  "-- at t=%d" % len(self.escape_times), file=sys.stderr)
+            sys.stderr.flush()
+            self.tau = 1e-4
 
         # current state
         x = self.mountain_car.x
@@ -184,7 +191,7 @@ class Agent():
 
         # 1.2) For each action `a_i`, compute Q(s, a_i) -- Vectorised
         # weights(num_actions x num_neurons_pos x num_neurons_v) . states(neuron_activ_pos x neuron_activ_v) = (num_Q_actions)
-        # i.e. (3x20x20) . (20x20) -> (3,)
+        # i.e. (3x10x10) . (10x10) -> (3,)
         Q_s_a = np.tensordot(self.weights, s, 2)
 
         # ε-greedy action choice; Generate action probability with `tau` exploration temperature
