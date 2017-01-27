@@ -167,7 +167,7 @@ class Agent():
         plb.xlabel('Position (m)', fontsize=14)
         plb.ylabel(r'Speed ($\frac{m}{s}$)', fontsize=14)
         plb.title(r'''Force direction at episode {e}{n}($\lambda={l}, \tau={t}$)'''.format(
-            e=self.mountain_car.t, n="\n", l=self.lambdaa, t=self.tau), fontsize=18)
+            e=len(self.escape_times)+1, n="\n", l=self.lambdaa, t=self.tau), fontsize=18)
         # return actions
 
     def activation(self, x, v):
