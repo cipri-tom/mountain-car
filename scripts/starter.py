@@ -14,7 +14,8 @@ import mountaincar
 
 def softmax(x, tau):
     """ Returns softmax probabilities with temperature tau"""
-    e_x = np.exp(x / tau)
+    x = x / tau
+    e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
 class Agent():
